@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SkopySAI — assistant IA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/11.1.1/marked.min.js"></script>
+<style>
+  :root{
+    --bg: #0f1210;
+    --panel: #171b18;
+    --line: #2a2f2b;
+    --text: #e9ede8;
+    --dim: #8a9188;
+    --accent: #5fd4a3;
+    --accent-dim: #2f5c47;
+    --user-bubble: #232823;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: 'Georgia', 'Iowan Old Style', serif;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    padding:14px 22px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex-shrink:0;
+    flex-wrap:wrap;
+  }
+  header .mark{
+    width:10px;height:10px;border-radius:50%;
+    background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+    flex-shrink:0;
+  }
+  header h1{
+    font-size:16px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    font-weight:600;
+    margin:0;
+  }
+  header span.sub{
+    font-family: -apple-system, sans-serif;
+    font-size:12px;
+    color:var(--dim);
+  }
+  #keyrow{
+    margin-left:auto;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family: -apple-system, sans-serif;
+  }
+  #apikey{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    color:var(--text);
+    font-size:12px;
+    padding:7px 10px;
+    width:220px;
+  }
+  #apikey:focus{outline:none;border-color:var(--accent-dim);}
+  #modelselect{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    color:var(--text);
+    font-size:12px;
+    padding:7px 8px;
+  }
+  #modelselect:focus{outline:none;border-color:var(--accent-dim);}
+  #keystatus{
+    font-size:11px;
+    color:var(--dim);
+  }
+  #keystatus.ok{color:var(--accent);}
+  #log{
+    flex:1;
+    overflow-y:auto;
+    padding:20px;
+    max-width:760px;
+    width:100%;
+    margin:0 auto;
+  }
+  .msg{
+    margin-bottom:22px;
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+  }
+  .msg.user{align-items:flex-end;}
+  .msg.assistant{align-items:flex-start;}
+  .role{
+    font-family: -apple-system, sans-serif;
+    font-size:10px;
+    letter-spacing:0.12em;
+    text-transform:uppercase;
+    color:var(--dim);
+  }
+  .bubble{
+    max-width:92%;
+    padding:12px 16px;
+    border-radius:3px;
+    line-height:1.55;
+    font-size:15px;
+    white-space:pre-wrap;
+  }
+  .msg.user .bubble{
+    background:var(--user-bubble);
+    border:1px solid var(--line);
+  }
+  .msg.assistant .bubble{
+    background:transparent;
+    border-left:2px solid var(--accent-dim);
+    padding-left:14px;
+  }
+  .bubble p{margin:0 0 10px 0;}
+  .bubble p:last-child{margin-bottom:0;}
+  .bubble ul, .bubble ol{margin:0 0 10px 0; padding-left:22px;}
+  .bubble li{margin-bottom:4px;}
+  .bubble h1, .bubble h2, .bubble h3{
+    font-family: -apple-system, sans-serif;
+    margin:16px 0 8px 0;
+    line-height:1.3;
+  }
+  .bubble h1:first-child, .bubble h2:first-child, .bubble h3:first-child{margin-top:0;}
+  .bubble strong{color:#fff;}
+  .bubble code{
+    font-family: 'SF Mono', Monaco, monospace;
+    font-size:13px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:1px 5px;
+  }
+  .codeblock{
+    position:relative;
+    margin:12px 0;
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+    background:#0c0f0d;
+  }
+  .codeblock-header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:6px 10px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    font-family: -apple-system, sans-serif;
+  }
+  .codeblock-lang{
+    font-size:11px;
+    color:var(--dim);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .copy-btn{
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--dim);
+    font-family: -apple-system, sans-serif;
+    font-size:11px;
+    padding:3px 9px;
+    border-radius:4px;
+    cursor:pointer;
+  }
+  .copy-btn:hover{border-color:var(--accent-dim); color:var(--accent);}
+  .copy-btn.copied{color:var(--accent); border-color:var(--accent-dim);}
+  .codeblock pre{
+    margin:0;
+    padding:12px 14px;
+    overflow-x:auto;
+  }
+  .codeblock pre code{
+    background:none;
+    border:none;
+    padding:0;
+    font-size:13px;
+    line-height:1.5;
+  }
+  .msg-copy-row{
+    margin-top:6px;
+  }
+  .msg-copy-row .copy-btn{
+    font-size:10px;
+  }
+  .searching{
+    font-family: -apple-system, sans-serif;
+    font-size:12px;
+    color:var(--accent);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .dot-anim span{
+    display:inline-block;
+    width:4px;height:4px;
+    border-radius:50%;
+    background:var(--accent);
+    margin-right:3px;
+    animation:pulse 1.2s infinite ease-in-out;
+  }
+  .dot-anim span:nth-child(2){animation-delay:0.2s;}
+  .dot-anim span:nth-child(3){animation-delay:0.4s;}
+  @keyframes pulse{
+    0%,60%,100%{opacity:0.25;}
+    30%{opacity:1;}
+  }
+  .sources{
+    margin-top:8px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .source{
+    font-family: -apple-system, sans-serif;
+    font-size:11px;
+    color:var(--dim);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:4px 10px;
+    text-decoration:none;
+    max-width:220px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .source:hover{
+    border-color:var(--accent-dim);
+    color:var(--accent);
+  }
+  #inputbar{
+    border-top:1px solid var(--line);
+    padding:16px;
+    flex-shrink:0;
+  }
+  #inputform{
+    max-width:760px;
+    margin:0 auto;
+    display:flex;
+    gap:10px;
+    align-items:flex-end;
+  }
+  #inputtext{
+    flex:1;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:4px;
+    color:var(--text);
+    font-family: -apple-system, sans-serif;
+    font-size:14px;
+    padding:12px 14px;
+    resize:none;
+    max-height:140px;
+    line-height:1.4;
+  }
+  #inputtext:focus{
+    outline:none;
+    border-color:var(--accent-dim);
+  }
+  #sendbtn{
+    background:var(--accent);
+    color:#0f1210;
+    border:none;
+    border-radius:4px;
+    padding:12px 18px;
+    font-family: -apple-system, sans-serif;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  #sendbtn:disabled{
+    opacity:0.4;
+    cursor:default;
+  }
+  #sendbtn:hover:not(:disabled){
+    filter:brightness(1.1);
+  }
+  .empty{
+    color:var(--dim);
+    font-family: -apple-system, sans-serif;
+    font-size:13px;
+    text-align:center;
+    margin-top:60px;
+    max-width:420px;
+    margin-left:auto;
+    margin-right:auto;
+    line-height:1.6;
+  }
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark"></div>
+  <h1>SkopySAI</h1>
+  <span class="sub">assistant Gemini avec recherche web</span>
+  <div id="keyrow">
+    <select id="modelselect">
+      <option value="gemini-2.5-flash">Flash — rapide, gratuit</option>
+      <option value="gemini-3.1-pro-preview">3.1 Pro — puissant, payant</option>
+    </select>
+    <input type="password" id="apikey" name="gemini-api-key" autocomplete="current-password" placeholder="Colle ta clé API Gemini ici">
+    <span id="keystatus">non connectée</span>
+  </div>
+</header>
+
+<div id="log">
+  <div class="empty">Colle ta clé API Gemini en haut à droite (elle reste seulement dans cette page, jamais enregistrée nulle part), puis pose ta question. L'assistant cherche sur le web si besoin.</div>
+</div>
+
+<div id="inputbar">
+  <form id="inputform">
+    <textarea id="inputtext" rows="1" placeholder="Écris ta question..."></textarea>
+    <button id="sendbtn" type="submit">Envoyer</button>
+  </form>
+</div>
+
+<script>
+const log = document.getElementById('log');
+const form = document.getElementById('inputform');
+const textarea = document.getElementById('inputtext');
+const sendBtn = document.getElementById('sendbtn');
+const apiKeyInput = document.getElementById('apikey');
+const keyStatus = document.getElementById('keystatus');
+const modelSelect = document.getElementById('modelselect');
+
+let history = []; // { role: 'user'|'model', parts: [{text}] }
+let emptied = false;
+
+apiKeyInput.addEventListener('input', () => {
+  if (apiKeyInput.value.trim().length > 10){
+    keyStatus.textContent = 'clé prête';
+    keyStatus.classList.add('ok');
+  } else {
+    keyStatus.textContent = 'non connectée';
+    keyStatus.classList.remove('ok');
+  }
+});
+
+textarea.addEventListener('input', () => {
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
+});
+
+textarea.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    form.requestSubmit();
+  }
+});
+
+function clearEmpty(){
+  if (!emptied){
+    log.innerHTML = '';
+    emptied = true;
+  }
+}
+
+function addUserMessage(text){
+  clearEmpty();
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `<div class="role">Toi</div><div class="bubble"></div>`;
+  div.querySelector('.bubble').textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function addSearchingIndicator(){
+  clearEmpty();
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.id = 'searching-indicator';
+  div.innerHTML = `<div class="role">SkopySAI</div><div class="searching"><span class="dot-anim"><span></span><span></span><span></span></span> réflexion / recherche en cours...</div>`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function removeSearchingIndicator(){
+  const el = document.getElementById('searching-indicator');
+  if (el) el.remove();
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function wrapCodeBlocks(container){
+  const pres = container.querySelectorAll('pre');
+  pres.forEach(pre => {
+    const codeEl = pre.querySelector('code');
+    const rawText = codeEl ? codeEl.textContent : pre.textContent;
+    let lang = '';
+    if (codeEl){
+      const m = (codeEl.className || '').match(/language-(\w+)/);
+      if (m) lang = m[1];
+    }
+    const wrapper = document.createElement('div');
+    wrapper.className = 'codeblock';
+    const header = document.createElement('div');
+    header.className = 'codeblock-header';
+    header.innerHTML = `<span class="codeblock-lang">${lang || 'code'}</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'copy-btn';
+    btn.type = 'button';
+    btn.textContent = 'Copier';
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(rawText).then(() => {
+        btn.textContent = 'Copié !';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copier'; btn.classList.remove('copied'); }, 1500);
+      });
+    });
+    header.appendChild(btn);
+    pre.parentNode.insertBefore(wrapper, pre);
+    wrapper.appendChild(header);
+    wrapper.appendChild(pre);
+  });
+}
+
+function addAssistantMessage(text, sources){
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.innerHTML = `<div class="role">SkopySAI</div>`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  try{
+    bubble.innerHTML = marked.parse(text);
+  } catch(e){
+    bubble.textContent = text;
+  }
+  div.appendChild(bubble);
+  wrapCodeBlocks(bubble);
+
+  if (sources && sources.length){
+    const srcDiv = document.createElement('div');
+    srcDiv.className = 'sources';
+    const seen = new Set();
+    sources.forEach(s => {
+      if (!s.url || seen.has(s.url)) return;
+      seen.add(s.url);
+      const a = document.createElement('a');
+      a.className = 'source';
+      a.href = s.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.textContent = s.title || s.url;
+      srcDiv.appendChild(a);
+    });
+    div.appendChild(srcDiv);
+  }
+
+  const copyRow = document.createElement('div');
+  copyRow.className = 'msg-copy-row';
+  const copyAllBtn = document.createElement('button');
+  copyAllBtn.className = 'copy-btn';
+  copyAllBtn.type = 'button';
+  copyAllBtn.textContent = 'Copier la réponse';
+  copyAllBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(text).then(() => {
+      copyAllBtn.textContent = 'Copié !';
+      copyAllBtn.classList.add('copied');
+      setTimeout(() => { copyAllBtn.textContent = 'Copier la réponse'; copyAllBtn.classList.remove('copied'); }, 1500);
+    });
+  });
+  copyRow.appendChild(copyAllBtn);
+  div.appendChild(copyRow);
+
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function askAssistant(userText){
+  const key = apiKeyInput.value.trim();
+  if (!key){
+    addAssistantMessage("Il me faut ta clé API Gemini dans le champ en haut à droite avant de pouvoir répondre.", []);
+    return;
+  }
+
+  history.push({ role: 'user', parts: [{ text: userText }] });
+
+  addSearchingIndicator();
+  sendBtn.disabled = true;
+
+  try{
+    const selectedModel = modelSelect.value;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${encodeURIComponent(key)}`;
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: history,
+        tools: [{ google_search: {} }],
+        systemInstruction: {
+          parts: [{ text: "Tu es un assistant francophone, clair et concis. Utilise la recherche web quand la question porte sur des faits récents, changeants, ou que tu n'es pas sûr. Réponds directement, sans détour." }]
+        }
+      })
+    });
+
+    if (!response.ok){
+      const errBody = await response.text();
+      throw new Error(`Erreur API (${response.status}) : ${errBody.slice(0,200)}`);
+    }
+
+    const data = await response.json();
+    removeSearchingIndicator();
+
+    const candidate = data.candidates && data.candidates[0];
+    if (!candidate){
+      addAssistantMessage("Pas de réponse renvoyée par l'API.", []);
+      return;
+    }
+
+    const finalText = (candidate.content.parts || [])
+      .map(p => p.text || '')
+      .join('\n')
+      .trim() || "(réponse vide)";
+
+    let sources = [];
+    const chunks = candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks;
+    if (Array.isArray(chunks)){
+      chunks.forEach(c => {
+        if (c.web){
+          sources.push({ url: c.web.uri, title: c.web.title });
+        }
+      });
+    }
+
+    addAssistantMessage(finalText, sources);
+    history.push({ role: 'model', parts: [{ text: finalText }] });
+
+  } catch(err){
+    removeSearchingIndicator();
+    addAssistantMessage("Erreur : " + err.message, []);
+    console.error(err);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = textarea.value.trim();
+  if (!text) return;
+  addUserMessage(text);
+  textarea.value = '';
+  textarea.style.height = 'auto';
+  askAssistant(text);
+});
+</script>
+
+</body>
+</html>
