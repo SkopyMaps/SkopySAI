@@ -295,8 +295,9 @@
   .copy-btn.copied{color:var(--accent); border-color:var(--accent-dim);}
   .codeblock pre{margin:0; padding:12px 14px; overflow-x:auto;}
   .codeblock pre code{background:none; border:none; padding:0; font-size:13px; line-height:1.5;}
-  .msg-copy-row{margin-top:6px;}
+  .msg-copy-row{margin-top:6px; display:flex; gap:6px;}
   .msg-copy-row .copy-btn{font-size:10px;}
+  .speak-btn.speaking{color:var(--accent); border-color:var(--accent-dim);}
   .searching{
     font-family: -apple-system, sans-serif;
     font-size:12px;
@@ -382,6 +383,28 @@
     transition:color 0.15s, border-color 0.15s;
   }
   #imgbtn:hover{color:var(--accent); border-color:var(--accent-dim);}
+  #micbtn{
+    background:var(--panel);
+    border:1px solid var(--line);
+    color:var(--dim);
+    border-radius:8px;
+    width:44px;
+    height:44px;
+    flex-shrink:0;
+    cursor:pointer;
+    font-size:17px;
+    transition:color 0.15s, border-color 0.15s;
+  }
+  #micbtn:hover{color:var(--accent); border-color:var(--accent-dim);}
+  #micbtn.recording{
+    color:var(--danger);
+    border-color:var(--danger);
+    animation:mic-pulse 1.1s infinite ease-in-out;
+  }
+  @keyframes mic-pulse{
+    0%,100%{box-shadow:0 0 0 0 rgba(212,122,95,0.4);}
+    50%{box-shadow:0 0 0 6px rgba(212,122,95,0);}
+  }
   #inputtext{
     flex:1;
     background:var(--panel);
@@ -426,9 +449,62 @@
   }
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  /* ---------- RESPONSIVE MOBILE ---------- */
+  @media (max-width: 720px){
+    #sidebar{
+      position:fixed;
+      top:0; left:0; bottom:0;
+      width:82vw;
+      max-width:300px;
+      z-index:50;
+      margin-left:0;
+      transform:translateX(-100%);
+      transition:transform 0.25s cubic-bezier(.4,0,.2,1);
+    }
+    #sidebar:not(.hidden){transform:translateX(0);}
+    #sidebar.hidden{transform:translateX(-100%); margin-left:0;}
+    #sidebar-backdrop{
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.5);
+      z-index:40;
+    }
+    #sidebar-backdrop.show{display:block;}
+
+    header{
+      padding:10px 12px;
+      gap:8px;
+    }
+    header h1{font-size:14px;}
+    header span.sub{display:none;}
+    #keyrow{
+      width:100%;
+      margin-left:0;
+      order:10;
+      flex-wrap:wrap;
+    }
+    #apikey{width:100%; flex:1; min-width:120px;}
+    #modelselect{flex-shrink:0;}
+
+    #log{padding:16px 12px;}
+    .bubble{max-width:100%; font-size:14.5px;}
+    .attached-img{max-width:100%;}
+
+    #inputbar{padding:10px 10px 14px 10px;}
+    #inputform{gap:6px;}
+    #imgbtn, #micbtn{width:40px; height:40px; font-size:16px;}
+    #sendbtn{padding:12px 14px; font-size:12.5px;}
+    #inputtext{padding:11px 12px; font-size:16px;} /* 16px évite le zoom auto iOS */
+
+    .msg-copy-row{flex-wrap:wrap;}
+  }
 </style>
 </head>
 <body>
+
+<div id="sidebar-backdrop"></div>
 
 <div id="sidebar">
   <div id="sidebar-header">
@@ -465,6 +541,7 @@
     <form id="inputform">
       <button id="imgbtn" type="button" title="Joindre une image">🖼</button>
       <input type="file" id="imgfile" accept="image/*" style="display:none;">
+      <button id="micbtn" type="button" title="Dicter la question">🎤</button>
       <textarea id="inputtext" rows="1" placeholder="Écris ta question..."></textarea>
       <button id="sendbtn" type="submit">Envoyer</button>
     </form>
@@ -485,6 +562,7 @@ const convList = document.getElementById('conv-list');
 const newChatBtn = document.getElementById('newchat-btn');
 const imgBtn = document.getElementById('imgbtn');
 const imgFile = document.getElementById('imgfile');
+const micBtn = document.getElementById('micbtn');
 const attachPreview = document.getElementById('attach-preview');
 const attachPreviewImg = document.getElementById('attach-preview-img');
 const removeAttachBtn = document.getElementById('remove-attach-btn');
@@ -532,6 +610,10 @@ function renderConvList(){
     item.addEventListener('click', (e) => {
       if (e.target.classList.contains('conv-del')) return;
       switchToConversation(conv.id);
+      if (window.innerWidth <= 720){
+        sidebar.classList.add('hidden');
+        document.getElementById('sidebar-backdrop').classList.remove('show');
+      }
     });
     item.querySelector('.conv-del').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -599,8 +681,21 @@ function persistCurrentConversation(firstUserText){
 
 /* ---------------- UI générale ---------------- */
 
-sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('hidden'));
-newChatBtn.addEventListener('click', startNewConversation);
+sidebarToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('hidden');
+  document.getElementById('sidebar-backdrop').classList.toggle('show', !sidebar.classList.contains('hidden') && window.innerWidth <= 720);
+});
+document.getElementById('sidebar-backdrop').addEventListener('click', () => {
+  sidebar.classList.add('hidden');
+  document.getElementById('sidebar-backdrop').classList.remove('show');
+});
+newChatBtn.addEventListener('click', () => {
+  startNewConversation();
+  if (window.innerWidth <= 720){
+    sidebar.classList.add('hidden');
+    document.getElementById('sidebar-backdrop').classList.remove('show');
+  }
+});
 
 apiKeyInput.addEventListener('input', () => {
   if (apiKeyInput.value.trim().length > 10){
@@ -644,6 +739,95 @@ imgFile.addEventListener('change', () => {
 });
 
 removeAttachBtn.addEventListener('click', clearAttachment);
+
+/* ---------------- Dictée vocale ---------------- */
+
+const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognizer = null;
+let isRecording = false;
+
+if (SpeechRecognitionCtor){
+  recognizer = new SpeechRecognitionCtor();
+  recognizer.lang = 'fr-FR';
+  recognizer.interimResults = true;
+  recognizer.continuous = false;
+
+  let baseText = '';
+
+  recognizer.addEventListener('start', () => {
+    isRecording = true;
+    micBtn.classList.add('recording');
+    baseText = textarea.value ? textarea.value + ' ' : '';
+  });
+
+  recognizer.addEventListener('result', (event) => {
+    let transcript = '';
+    for (let i = 0; i < event.results.length; i++){
+      transcript += event.results[i][0].transcript;
+    }
+    textarea.value = baseText + transcript;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 140) + 'px';
+  });
+
+  recognizer.addEventListener('end', () => {
+    isRecording = false;
+    micBtn.classList.remove('recording');
+  });
+
+  recognizer.addEventListener('error', () => {
+    isRecording = false;
+    micBtn.classList.remove('recording');
+  });
+
+  micBtn.addEventListener('click', () => {
+    if (isRecording){
+      recognizer.stop();
+    } else {
+      try{ recognizer.start(); } catch(e){ /* déjà démarré */ }
+    }
+  });
+} else {
+  micBtn.addEventListener('click', () => {
+    alert("La dictée vocale n'est pas supportée par ce navigateur. Essaie avec Chrome ou Edge.");
+  });
+}
+
+/* ---------------- Lecture à voix haute ---------------- */
+
+let currentUtterance = null;
+
+function speakText(text, btn){
+  if (!('speechSynthesis' in window)){
+    alert("La synthèse vocale n'est pas supportée par ce navigateur.");
+    return;
+  }
+  if (currentUtterance && window.speechSynthesis.speaking){
+    window.speechSynthesis.cancel();
+    resetAllSpeakButtons();
+    if (currentUtterance._btn === btn) { currentUtterance = null; return; }
+  }
+  const plain = text.replace(/[#*`_>~-]/g, '').replace(/\n+/g, ' ');
+  const utter = new SpeechSynthesisUtterance(plain);
+  utter.lang = 'fr-FR';
+  utter._btn = btn;
+  currentUtterance = utter;
+  btn.textContent = '⏸ Arrêter';
+  btn.classList.add('speaking');
+  utter.onend = () => {
+    btn.textContent = '🔊 Écouter';
+    btn.classList.remove('speaking');
+    currentUtterance = null;
+  };
+  window.speechSynthesis.speak(utter);
+}
+
+function resetAllSpeakButtons(){
+  document.querySelectorAll('.speak-btn').forEach(b => {
+    b.textContent = '🔊 Écouter';
+    b.classList.remove('speaking');
+  });
+}
 
 function clearAttachment(){
   pendingImage = null;
@@ -777,6 +961,14 @@ function addAssistantMessage(text, sources, scroll = true){
     });
   });
   copyRow.appendChild(copyAllBtn);
+
+  const speakBtn = document.createElement('button');
+  speakBtn.className = 'copy-btn speak-btn';
+  speakBtn.type = 'button';
+  speakBtn.textContent = '🔊 Écouter';
+  speakBtn.addEventListener('click', () => speakText(text, speakBtn));
+  copyRow.appendChild(speakBtn);
+
   div.appendChild(copyRow);
 
   log.appendChild(div);
@@ -885,6 +1077,9 @@ form.addEventListener('submit', (e) => {
 loadConversations();
 renderConvList();
 startNewConversation();
+if (window.innerWidth <= 720){
+  sidebar.classList.add('hidden');
+}
 </script>
 
 </body>
